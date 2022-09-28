@@ -6,5 +6,7 @@ __version__ = '0.1.0'
 
 
 from .core import optimize_bin
-import tools
+#from .tools import *
+import binopt.tools
+#import tools
 import stats

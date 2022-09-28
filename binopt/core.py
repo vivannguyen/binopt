@@ -5,11 +5,11 @@ import numpy as np
 from scipy import optimize
 import matplotlib.pyplot as plt
 from matplotlib.ticker import (MaxNLocator, NullLocator, ScalarFormatter)
-import tools
+import binopt.tools as tools
 from scipy.stats import norm
 import numdifftools as nd
 
-np.set_printoptions(precision=4)
+#np.set_printoptions(precision=4)
 
 class binner_base(object):
     """Abstract class for classification based binning."""
@@ -142,7 +142,7 @@ class optimize_bin(binner_base):
         """
         _cats_ = np.digitize(X, bounds)
         _sige_ = []
-        print np.unique(_cats_)
+        #print np.unique(_cats_)
         for cid in range(bounds.shape[0]):
             min_, max_ = tools.weighted_quantile(
                 mass[_cats_ == cid],
@@ -171,16 +171,24 @@ class optimize_bin(binner_base):
             else:
                 return self._fom_(ns_, nb_, berr=breg, method=self.fom)
 
-    def cost_fun(self, x, breg=None, lower_bound=None, upper_bound=None):
+    def cost_fun(self, x, breg=None):#, lower_bound=None, upper_bound=None):
         """Cost function."""
         z = None
+        init_x = x.copy()
+        # Use if bounds are set to -inf, +inf. Slightly faster?
+        #x = (np.tanh(x) + 1) / 2 * (upper_bound - lower_bound) + lower_bound
+        #print(init_x, x)
         x = np.sort(x)
+       
+        # Unnecessary since bounds are already specified?
+        # Better to use tanh transform?
         # print "cost function : ", x
-        if upper_bound is not None:
-            x[x >= upper_bound] = upper_bound
-        if lower_bound is not None:
-            x[x <= lower_bound] = lower_bound
+        #if upper_bound is not None:
+        #    x[x >= upper_bound] = upper_bound
+        #if lower_bound is not None:
+        #    x[x <= lower_bound] = lower_bound
         # print "     function : ", x, lower_bound, upper_bound
+        
         if self.use_kde_density:
             if breg is None:
                 z = self.binned_score_density(x)
@@ -193,6 +201,7 @@ class optimize_bin(binner_base):
                 z = self.binned_score(x, breg)
         if self.drop_last_bin:
             # _v_ = np.insert(np.sort(x), 0, [-np.sqrt((z[1:]**2).sum())])
+            
             return -np.sqrt((z[1:]**2).sum())
         else:
             # _v_ = np.insert(np.sort(x), 0, -np.sqrt((z**2).sum()))
@@ -239,7 +248,7 @@ class optimize_bin(binner_base):
                                 self.X[self.y == 0],
                                 weights=self.sample_weights[self.y == 0])
 
-        if "TNC" in method:
+        if method.lower() == "tnc": # Changed by Vivan 01/07/2022
             _ndj_ = nd.Jacobian(self.cost_fun)
             _jac_ = lambda x: np.ndarray.flatten(_ndj_(x))
             self.result = optimize.minimize(
@@ -250,7 +259,7 @@ class optimize_bin(binner_base):
             )
             self.x_init = self.result.x
             self.result.x = np.sort(self.result.x)
-        if "differential_evolution":
+        elif method.lower() == "differential_evolution": # Changed by Vivan 01/07/2022
             self.result = optimize.differential_evolution(
                 self.cost_fun,
                 bounds=_bounds_,
@@ -258,18 +267,19 @@ class optimize_bin(binner_base):
             )
             self.x_init = self.result.x
             self.result.x = np.sort(self.result.x)
-        if "Nelder-Mead" in method:
+        elif method.lower() == "nelder-mead":
             self.result = optimize.minimize(
                 self.cost_fun, self.x_init,
-                args=(min(self.range),
-                      max(self.range)),
+                args=(None,), # Changed by Vivan 01/07/2022
+                     # min(self.range),
+                     # max(self.range)),
                 bounds=_bounds_,
                 method='Nelder-Mead'
             )
             self.x_init = self.result.x
             self.result.x = np.sort(self.result.x)
-        if "iminuit" in method:
-            print "blah"
+#        if "iminuit" in method:
+#            print "blah"
         return self.result
 
     def optimisation_monitoring(self, fig=None):
